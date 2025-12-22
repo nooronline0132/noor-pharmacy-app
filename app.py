@@ -36,8 +36,6 @@ st.markdown("""
     .stApp { background-color: #f0f2f6; }
     .main-title { font-size: 24px !important; text-align: center; color: #0D47A1; font-weight: bold; margin-bottom: 10px; }
     .card { background: white; padding: 12px; border-radius: 12px; border: 1px solid #ddd; margin-bottom: 10px; }
-    .mobile-btn { width: 100%; border-radius: 8px; padding: 10px; margin-top: 5px; text-align: center; }
-    [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -46,16 +44,28 @@ if 'custs' not in st.session_state: st.session_state.custs = load_customers(st.s
 
 st.markdown('<div class="main-title">🏥 NOOR PHARMACY MOBILE</div>', unsafe_allow_html=True)
 
-# Top Summary Cards (Optimized for Mobile)
-summary = st.session_state.data.groupby('Name').apply(lambda x: x['Debit'].sum() - x['Credit'].sum(), include_groups=False)
+# --- TOP SUMMARY (With Error Fix) ---
+# Agar data khali ho to 0 dikhaye
+if not st.session_state.data.empty:
+    summary = st.session_state.data.groupby('Name').apply(lambda x: x['Debit'].sum() - x['Credit'].sum(), include_groups=False)
+    receive = summary[summary > 0].sum()
+    pay = abs(summary[summary < 0].sum())
+else:
+    receive = 0.0
+    pay = 0.0
+
 m1, m2 = st.columns(2)
-m1.metric("KUL VASOOLI", f"Rs {summary[summary > 0].sum():,.0f}")
-m2.metric("KUL ADAIGI", f"Rs {abs(summary[summary < 0].sum()):,.0f}")
+m1.metric("KUL VASOOLI", f"Rs {receive:,.0f}")
+m2.metric("KUL ADAIGI", f"Rs {pay:,.0f}")
 
 t1, t2 = st.tabs(["👤 CUSTOMERS", "➕ NEW ENTRY"])
 
 with t1:
     search = st.text_input("🔍 Search Name...")
+    # Add Default Customer if none exists
+    if st.session_state.custs.empty:
+        st.info("Abhi koi customer nahi hai. 'NEW ENTRY' mein ja kar pehli entry karein.")
+    
     disp = st.session_state.custs
     if search: disp = disp[disp['Name'].str.contains(search, case=False)]
     
@@ -64,16 +74,16 @@ with t1:
             st.markdown('<div class="card">', unsafe_allow_html=True)
             c1, c2 = st.columns([1, 3])
             
-            with c1: # Profile Photo
+            with c1:
                 img = r['Image_Path'] if r['Image_Path'] and os.path.exists(str(r['Image_Path'])) else "https://cdn-icons-png.flaticon.com/512/149/149071.png"
                 st.image(img, width=70)
             
-            with c2: # Name & Balance
-                bal = summary.get(r['Name'], 0)
+            with c2:
+                bal = summary.get(r['Name'], 0) if not st.session_state.data.empty else 0
                 st.subheader(r['Name'])
                 st.write(f"**Bal: Rs {bal:,.0f}**")
             
-            # Action Row (Reminders & Downloads)
+            # Actions
             col_a, col_b = st.columns(2)
             msg = f"Assalam o Alaikum {r['Name']}, Aapka balance Rs {bal} hai. Shukriya."
             wa_url = f"https://web.whatsapp.com/send?text={urllib.parse.quote(msg)}"
@@ -83,47 +93,46 @@ with t1:
             csv_data = cust_ledger.to_csv(index=False).encode('utf-8')
             col_b.download_button("📥 Report", data=csv_data, file_name=f"{r['Name']}.csv", mime='text/csv', key=f"dl_{idx}")
 
-            with st.expander("🛠️ History & Edit"):
-                # Full Delete Button
+            with st.expander("🛠️ Options & History"):
                 if st.button(f"🗑️ Delete Account", key=f"fdel_{idx}"):
                     st.session_state.custs = st.session_state.custs.drop(idx)
                     st.session_state.data = st.session_state.data[st.session_state.data['Name'] != r['Name']]
                     save_file(st.session_state.custs, CUST_FILE); save_file(st.session_state.data, FILE_NAME)
                     st.rerun()
                 
-                # History List
                 for h_idx, h_row in cust_ledger.iterrows():
                     st.markdown("---")
                     amt = h_row['Debit'] if h_row['Debit'] > 0 else h_row['Credit']
                     st.caption(f"{h_row['Date']} | {h_row['Note']} | Rs {amt}")
-                    
-                    e1, e2 = st.columns(2)
-                    if e1.button("✏️ Edit", key=f"eb_{h_idx}"): st.session_state.active_edit = h_idx
-                    if e2.button("❌ Del", key=f"db_{h_idx}"):
+                    if st.button("❌ Del", key=f"db_{h_idx}"):
                         st.session_state.data = st.session_state.data.drop(h_idx)
                         save_file(st.session_state.data, FILE_NAME); st.rerun()
-
-                    if st.session_state.get('active_edit') == h_idx:
-                        with st.form(f"ef_{h_idx}"):
-                            enote = st.text_input("Detail", h_row['Note'])
-                            eamt = st.number_input("Amount", value=float(amt))
-                            if st.form_submit_button("Update"):
-                                if h_row['Debit'] > 0: st.session_state.data.at[h_idx, 'Debit'] = eamt
-                                else: st.session_state.data.at[h_idx, 'Credit'] = eamt
-                                st.session_state.data.at[h_idx, 'Note'] = enote
-                                save_file(st.session_state.data, FILE_NAME); del st.session_state.active_edit; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
 with t2:
     with st.form("mobile_entry", clear_on_submit=True):
         st.write("### Nayi Entry")
-        u_name = st.selectbox("Customer", st.session_state.custs['Name'].tolist())
+        # Direct Text Input if no customers yet
+        if st.session_state.custs.empty:
+            u_name = st.text_input("Naya Customer Naam")
+        else:
+            u_name = st.selectbox("Customer Select Karein", st.session_state.custs['Name'].tolist())
+            u_name_extra = st.text_input("Ya Naya Naam Likhein (Optional)")
+            if u_name_extra: u_name = u_name_extra
+            
         u_note = st.text_input("Details")
         u_amt = st.number_input("Amount", min_value=0.0)
         u_type = st.radio("Type", ["Udhaar Diya", "Vasooli Hui"])
+        
         if st.form_submit_button("SAVE RECORD"):
             dr = u_amt if "Udhaar" in u_type else 0.0
             cr = u_amt if "Vasooli" in u_type else 0.0
             new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": u_note, "Debit": dr, "Credit": cr}
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_r])], ignore_index=True)
+            # Update customer list too
+            if u_name not in st.session_state.custs['Name'].tolist():
+                new_c = pd.DataFrame([{"Name": u_name, "Phone": "", "Address": "", "Image_Path": ""}])
+                st.session_state.custs = pd.concat([st.session_state.custs, new_c], ignore_index=True)
+                save_file(st.session_state.custs, CUST_FILE)
+            
             save_file(st.session_state.data, FILE_NAME); st.rerun()
