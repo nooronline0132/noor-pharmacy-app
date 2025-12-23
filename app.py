@@ -4,125 +4,121 @@ import os
 import urllib.parse
 from datetime import datetime
 
-# Setup
+# 1. Basic Settings
 FILE_NAME = "noor_ledger_final.csv"
-LOGO_FILE = "Noor Pharmacy logo.jpg"
+PASSWORD = "noor786"
 
 st.set_page_config(page_title="Noor Pharmacy", layout="centered")
 
-# --- LOGIN ---
-PASSWORD = "noor786"
-if 'logged_in' not in st.session_state: st.session_state.logged_in = False
-if not st.session_state.logged_in:
-    st.markdown("<h2 style='text-align:center;'>🔐 Noor Pharmacy Login</h2>", unsafe_allow_html=True)
-    if st.text_input("PIN", type="password") == PASSWORD:
-        st.session_state.logged_in = True
-        st.rerun()
-    st.stop()
-
-# --- CSS (Professional & Clear) ---
+# 2. Simple CSS (Taaki crash na ho)
 st.markdown("""
 <style>
-    .stApp { background-color: #F8FAFC !important; }
-    .main-title { color: #1E3A8A; text-align: center; font-weight: bold; margin-bottom: 20px; }
-    .m-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border-bottom: 4px solid #3B82F6; }
-    .cust-row { background: white; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #E2E8F0; }
-    .txn-card { background: white; padding: 10px; border-radius: 8px; margin-bottom: 5px; border-left: 5px solid #3B82F6; }
+    .stApp { background-color: #F1F6F9 !important; }
+    .metric-box { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .cust-card { background: white; padding: 10px; border-radius: 8px; margin-bottom: 5px; border-left: 5px solid #1E88E5; }
 </style>
 """, unsafe_allow_html=True)
 
+# 3. Login System
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if not st.session_state.logged_in:
+    st.header("🔐 Noor Pharmacy")
+    p = st.text_input("Enter PIN", type="password")
+    if st.button("Login"):
+        if p == PASSWORD: 
+            st.session_state.logged_in = True
+            st.rerun()
+    st.stop()
+
+# 4. Data Loading (Safe Method)
 def load_data():
     if os.path.exists(FILE_NAME):
-        df = pd.read_csv(FILE_NAME)
-        df["Debit"] = pd.to_numeric(df["Debit"], errors='coerce').fillna(0.0)
-        df["Credit"] = pd.to_numeric(df["Credit"], errors='coerce').fillna(0.0)
-        return df
+        try:
+            df = pd.read_csv(FILE_NAME)
+            df["Debit"] = pd.to_numeric(df["Debit"], errors='coerce').fillna(0.0)
+            df["Credit"] = pd.to_numeric(df["Credit"], errors='coerce').fillna(0.0)
+            return df
+        except:
+            return pd.DataFrame(columns=["Date", "Name", "Note", "Debit", "Credit"])
     return pd.DataFrame(columns=["Date", "Name", "Note", "Debit", "Credit"])
 
 if 'data' not in st.session_state: st.session_state.data = load_data()
 if 'view' not in st.session_state: st.session_state.view = "main"
 if 'sel_cust' not in st.session_state: st.session_state.sel_cust = None
 
-# Header
-st.markdown('<h2 class="main-title">🏥 NOOR PHARMACY</h2>', unsafe_allow_html=True)
-
-# --- CALCULATIONS (Fixed Error Here) ---
-data = st.session_state.data
-if not data.empty:
-    # Safely group and calculate balance
-    cust_totals = data.groupby('Name').agg({'Debit': 'sum', 'Credit': 'sum'}).reset_index()
-    cust_totals['Balance'] = cust_totals['Debit'] - cust_totals['Credit']
-    to_receive = cust_totals[cust_totals['Balance'] > 0]['Balance'].sum()
-    to_pay = abs(cust_totals[cust_totals['Balance'] < 0]['Balance'].sum())
+# 5. Calculations
+df = st.session_state.data
+if not df.empty:
+    summary = df.groupby('Name').agg({'Debit':'sum', 'Credit':'sum'}).reset_index()
+    summary['Bal'] = summary['Debit'] - summary['Credit']
+    rec = summary[summary['Bal'] > 0]['Bal'].sum()
+    pay = abs(summary[summary['Bal'] < 0]['Bal'].sum())
 else:
-    cust_totals = pd.DataFrame(columns=['Name', 'Debit', 'Credit', 'Balance'])
-    to_receive = 0.0
-    to_pay = 0.0
+    summary = pd.DataFrame(columns=['Name', 'Bal'])
+    rec = 0; pay = 0
 
 # --- MAIN SCREEN ---
 if st.session_state.view == "main":
-    # Metrics
+    st.title("🏥 Noor Pharmacy")
+    
+    # Top Metrics (Vyapar Style)
     c1, c2 = st.columns(2)
-    c1.markdown(f'<div class="m-card"><small>To Receive</small><br><b style="color:green; font-size:20px;">Rs {to_receive:,.0f}</b></div>', unsafe_allow_html=True)
-    c2.markdown(f'<div class="m-card" style="border-bottom-color:red;"><small>To Pay</small><br><b style="color:red; font-size:20px;">Rs {to_pay:,.0f}</b></div>', unsafe_allow_html=True)
+    with c1: st.markdown(f'<div class="metric-box"><small>To Receive</small><br><b style="color:green; font-size:20px;">Rs {rec:,.0f}</b></div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="metric-box"><small>To Pay</small><br><b style="color:red; font-size:20px;">Rs {pay:,.0f}</b></div>', unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["👤 Customers", "📑 History"])
+    tab1, tab2 = st.tabs(["👤 Customers", "📑 All Transactions"])
     
     with tab1:
-        search = st.text_input("🔍 Search Customer")
-        display_df = cust_totals
-        if search: display_df = display_df[display_df['Name'].str.contains(search, case=False)]
+        search = st.text_input("🔍 Search Name")
+        names = summary['Name'].unique()
+        if search: names = [n for n in names if search.lower() in str(n).lower()]
         
-        for _, row in display_df.iterrows():
-            col_a, col_b = st.columns([3, 1])
-            if col_a.button(f"👤 {row['Name']}", key=f"btn_{row['Name']}", use_container_width=True):
-                st.session_state.sel_cust = row['Name']
+        for n in names:
+            b = summary[summary['Name']==n]['Bal'].values[0]
+            col_n, col_b = st.columns([3, 1])
+            if col_n.button(f"👤 {n}", key=f"btn_{n}", use_container_width=True):
+                st.session_state.sel_cust = n
                 st.session_state.view = "detail"
                 st.rerun()
-            col_b.markdown(f"**{row['Balance']:,.0f}**")
+            col_b.markdown(f"**{b:,.0f}**")
 
     with tab2:
-        st.write("Recent Entries:")
-        for _, row in data.iloc[::-1].head(10).iterrows():
-            st.markdown(f'<div class="cust-row"><span>{row["Name"]}<br><small>{row["Date"]}</small></span><b>Rs {row["Debit"]+row["Credit"]:,.0f}</b></div>', unsafe_allow_html=True)
+        st.write("Recent Activity:")
+        for _, row in df.iloc[::-1].head(15).iterrows():
+            st.markdown(f'<div class="cust-card">{row["Name"]} - Rs {row["Debit"]+row["Credit"]} <br><small>{row["Date"]}</small></div>', unsafe_allow_html=True)
 
 # --- DETAIL VIEW ---
 elif st.session_state.view == "detail":
     name = st.session_state.sel_cust
-    if st.button("← Wapis Jayein"): 
+    if st.button("← Back"): 
         st.session_state.view = "main"
         st.rerun()
     
-    cust_bal = cust_totals[cust_totals['Name'] == name]['Balance'].values[0]
-    st.markdown(f'<div class="m-card" style="width:100%;"><h3>{name}</h3><small>Balance</small><h2>Rs {cust_bal:,.0f}</h2></div>', unsafe_allow_html=True)
+    st.subheader(f"Customer: {name}")
+    c_bal = summary[summary['Name']==name]['Bal'].values[0]
+    st.markdown(f'<div class="metric-box" style="width:100%"><h2>Rs {c_bal:,.0f}</h2></div>', unsafe_allow_html=True)
     
-    # WhatsApp Reminder
-    wa_msg = f"Assalam o Alaikum {name}, Noor Pharmacy se aapka balance Rs {cust_bal} hai."
-    st.link_button("🔔 WhatsApp Reminder", f"https://web.whatsapp.com/send?text={urllib.parse.quote(wa_msg)}")
-    
+    # History
     st.write("---")
-    hist = data[data['Name'] == name].iloc[::-1]
-    for idx, row in hist.iterrows():
-        t_label = "↗️ Credit (Diya)" if row['Debit'] > 0 else "↙️ Payment (Mila)"
-        st.markdown(f"**{row['Date']}**")
-        st.markdown(f"{t_label}: **Rs {row['Debit'] if row['Debit']>0 else row['Credit']:,.0f}**")
-        if st.button("🗑️ Delete", key=f"del_{idx}"):
-            st.session_state.data = data.drop(idx)
+    h = df[df['Name'] == name].iloc[::-1]
+    for idx, row in h.iterrows():
+        t = "↗️ Credit" if row['Debit'] > 0 else "↙️ Payment"
+        st.write(f"**{row['Date']}** | {t}: Rs {row['Debit']+row['Credit']}")
+        if st.button("🗑️ Del", key=f"d_{idx}"):
+            st.session_state.data = df.drop(idx)
             st.session_state.data.to_csv(FILE_NAME, index=False)
             st.rerun()
-        st.write("---")
 
-# --- ENTRY SIDEBAR ---
+# --- ENTRY FORM ---
 with st.sidebar:
-    st.image(LOGO_FILE) if os.path.exists(LOGO_FILE) else st.write("Noor Pharmacy")
-    st.header("➕ Nayi Entry")
-    with st.form("entry_form", clear_on_submit=True):
-        u_name = st.text_input("Customer Naam", value=st.session_state.sel_cust if st.session_state.sel_cust else "")
-        u_amt = st.number_input("Raqam", min_value=0.0)
-        u_type = st.radio("Type", ["Udhaar Diya", "Vasooli Hui"])
-        u_note = st.text_input("Note")
+    st.header("➕ New Entry")
+    with st.form("f", clear_on_submit=True):
+        u_name = st.text_input("Name", value=st.session_state.sel_cust if st.session_state.sel_cust else "")
+        u_amt = st.number_input("Amount", min_value=0.0)
+        u_type = st.radio("Type", ["Give Credit", "Take Payment"])
         if st.form_submit_button("SAVE"):
-            dr, cr = (u_amt, 0.0) if "Udhaar" in u_type else (0.0, u_amt)
-            new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": u_note, "Debit": dr, "Credit": cr}
+            dr, cr = (u_amt, 0.0) if "Credit" in u_type else (0.0, u_amt)
+            new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": "Entry", "Debit": dr, "Credit": cr}
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_r])], ignore_index=True)
-            st.session_state.data.to_csv(FILE_NAME, index=False); st.rerun()
+            st.session_state.data.to_csv(FILE_NAME, index=False)
+            st.rerun()
