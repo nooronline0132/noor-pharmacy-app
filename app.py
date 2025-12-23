@@ -10,38 +10,53 @@ FILE_NAME = "noor_ledger_final.csv"
 LOGO_FILE = "Noor Pharmacy logo.jpg"
 PASSWORD = "noor786"
 
-st.set_page_config(page_title="Noor Pharmacy", layout="wide", initial_sidebar_state="collapsed")
+# Page Configuration for Desktop
+st.set_page_config(page_title="Noor Pharmacy Ledger Book", layout="wide")
 
-# --- FORCE WHITE MODE CSS ---
+# --- ADVANCED CLEAN CSS ---
 st.markdown("""
 <style>
-    /* Pure White Background for whole app */
-    .stApp { background-color: #FFFFFF !important; color: #000000 !important; }
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
     
-    /* Vyapar Style Header Boxes */
-    .top-card { background: #F1F6F9; padding: 20px; border-radius: 12px; border: 1px solid #D1D9E0; text-align: center; }
-    .val-rec { color: #2E7D32; font-size: 28px; font-weight: bold; }
-    .val-pay { color: #D32F2F; font-size: 28px; font-weight: bold; }
+    html, body, [data-testid="stAppViewContainer"] {
+        background-color: #FFFFFF !important;
+        font-family: 'Roboto', sans-serif;
+    }
     
-    /* Force text to be black regardless of theme */
-    h1, h2, h3, h4, h5, h6, p, label, span, div { color: #111111 !important; }
+    .stApp { color: #2C3E50 !important; }
+
+    /* Centered Header & Logo */
+    .header-container { text-align: center; padding: 20px; }
+    .main-title { color: #0D47A1; font-size: 36px; font-weight: bold; margin-bottom: 5px; }
+    .sub-title { color: #546E7A; font-size: 18px; margin-bottom: 20px; }
+
+    /* Summary Cards */
+    .card-box { 
+        background: #F8F9FA; 
+        padding: 20px; 
+        border-radius: 15px; 
+        border: 1px solid #E0E0E0; 
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .text-rec { color: #2E7D32; font-size: 26px; font-weight: bold; }
+    .text-pay { color: #D32F2F; font-size: 26px; font-weight: bold; }
+
+    /* Buttons Fix */
+    .stButton>button {
+        border-radius: 8px;
+        transition: 0.3s;
+    }
     
-    /* Styling Buttons like Vyapar */
-    .btn-credit { background-color: #FF9800 !important; color: white !important; border-radius: 20px !important; }
-    .btn-payment { background-color: #2196F3 !important; color: white !important; border-radius: 20px !important; }
+    /* Make everything visible in Light Mode */
+    p, span, label, h1, h2, h3 { color: #1B2631 !important; }
+    
+    /* Table Styling */
+    .styled-table { width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 0.9em; min-width: 400px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOGIN ---
-if 'logged_in' not in st.session_state: st.session_state.logged_in = False
-if not st.session_state.logged_in:
-    st.markdown("<h2 style='text-align:center;'>🔐 Noor Pharmacy Login</h2>", unsafe_allow_html=True)
-    if st.text_input("Security PIN", type="password") == PASSWORD:
-        st.session_state.logged_in = True
-        st.rerun()
-    st.stop()
-
-# --- DATA LOADING ---
+# --- FUNCTIONS ---
 def load_data():
     if os.path.exists(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
@@ -51,74 +66,104 @@ def load_data():
     return pd.DataFrame(columns=["Date", "Name", "Note", "Debit", "Credit"])
 
 if 'data' not in st.session_state: st.session_state.data = load_data()
-df = st.session_state.data
 
-# --- HEADER SECTION ---
-c1, c2, c3 = st.columns([1, 2, 1])
+# --- LOGIN ---
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if not st.session_state.logged_in:
+    st.markdown("<div class='header-container'><h1>🔐 Secure Login</h1></div>", unsafe_allow_html=True)
+    if st.text_input("Enter PIN", type="password") == PASSWORD:
+        st.session_state.logged_in = True
+        st.rerun()
+    st.stop()
+
+# --- HEADER (Centered Logo & Title) ---
+st.markdown("<div class='header-container'>", unsafe_allow_html=True)
+c1, c2, c3 = st.columns([1, 1, 1])
 with c2:
-    if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=120)
-    st.markdown("<h1 style='text-align:center;'>NOOR PHARMACY</h1>", unsafe_allow_html=True)
+    if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=150)
+    st.markdown("<div class='main-title'>NOOR PHARMACY</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Udhar Book / Ledger System</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TOP SUMMARY ---
+# --- CALCULATIONS ---
+df = st.session_state.data
 if not df.empty:
     summary = df.groupby('Name').agg({'Debit': 'sum', 'Credit': 'sum'}).reset_index()
     summary['Bal'] = summary['Debit'] - summary['Credit']
-    rec = summary[summary['Bal'] > 0]['Bal'].sum()
-    pay = abs(summary[summary['Bal'] < 0]['Bal'].sum())
+    t_rec = summary[summary['Bal'] > 0]['Bal'].sum()
+    t_pay = abs(summary[summary['Bal'] < 0]['Bal'].sum())
 else:
-    summary = pd.DataFrame(columns=['Name', 'Bal']); rec = 0; pay = 0
+    summary = pd.DataFrame(columns=['Name', 'Bal']); t_rec = 0; t_pay = 0
 
+# --- METRICS ---
 m1, m2 = st.columns(2)
-m1.markdown(f'<div class="top-card"><small>TO RECEIVE (Vasooli)</small><br><span class="val-rec">Rs {rec:,.0f}</span></div>', unsafe_allow_html=True)
-m2.markdown(f'<div class="top-card"><small>TO PAY (Adaigi)</small><br><span class="val-pay">Rs {pay:,.0f}</span></div>', unsafe_allow_html=True)
+m1.markdown(f'<div class="card-box"><small>TOTAL TO RECEIVE</small><br><span class="text-rec">Rs {t_rec:,.0f}</span></div>', unsafe_allow_html=True)
+m2.markdown(f'<div class="card-box"><small>TOTAL TO PAY</small><br><span class="text-pay">Rs {t_pay:,.0f}</span></div>', unsafe_allow_html=True)
 
-st.markdown("---")
+st.divider()
 
-# --- MAIN LAYOUT ---
-left, right = st.columns([2, 1])
+# --- MAIN APP LAYOUT ---
+col_list, col_entry = st.columns([2, 1])
 
-with left:
-    st.subheader("👤 Customers & Reports")
-    search = st.text_input("🔍 Search Name (Naam Likhein)")
+with col_list:
+    st.subheader("📋 Customer Ledger Records")
+    search = st.text_input("🔍 Search Customer Name", placeholder="Start typing...")
     
-    names = summary['Name'].unique()
-    if search: names = [n for n in names if search.lower() in str(n).lower()]
+    unique_names = summary['Name'].unique()
+    if search:
+        unique_names = [n for n in unique_names if search.lower() in str(n).lower()]
     
-    for n in names:
-        b_val = summary[summary['Name'] == n]['Bal'].values[0]
-        with st.expander(f"👤 {n} (Rs {b_val:,.0f})"):
-            # WhatsApp Link
-            wa_msg = f"Noor Pharmacy: Account Balance for {n} is Rs {b_val}"
-            st.link_button("🔔 Send WhatsApp Reminder", f"https://web.whatsapp.com/send?text={urllib.parse.quote(wa_msg)}")
-            
-            # Transactions Table
-            st.write("Recent Activity:")
-            cust_df = df[df['Name'] == n].iloc[::-1]
-            st.table(cust_df[["Date", "Note", "Debit", "Credit"]])
-            
-            # Export CSV (Report)
-            csv_data = cust_df.to_csv(index=False).encode('utf-8')
-            st.download_button(f"📥 Download {n} Report", data=csv_data, file_name=f"{n}_Ledger.csv", key=f"dl_{n}")
-
-with right:
-    st.subheader("➕ New Entry")
-    with st.form("entry_form", clear_on_submit=True):
-        u_name = st.text_input("Customer Name")
-        u_amt = st.number_input("Amount (Raqam)", min_value=0.0)
-        u_type = st.radio("Type", ["Give Credit (Udhaar Diya)", "Take Payment (Vasooli)"])
-        u_note = st.text_input("Note (Tafseel)")
+    for name in unique_names:
+        b = summary[summary['Name'] == name]['Bal'].values[0]
+        color = "#2E7D32" if b >= 0 else "#D32F2F"
         
-        if st.form_submit_button("SAVE DATA"):
+        with st.expander(f"👤 {name} (Balance: Rs {b:,.0f})"):
+            # Customer Header Detail
+            st.markdown(f"### Customer: {name}")
+            st.markdown(f"**Current Balance:** <span style='color:{color}; font-size:22px;'>Rs {b:,.0f}</span>", unsafe_allow_html=True)
+            
+            # Action Buttons Row
+            b1, b2, b3 = st.columns(3)
+            wa_msg = f"Noor Pharmacy: Account Balance for {name} is Rs {b:,.0f}"
+            b1.link_button("🔔 WhatsApp", f"https://web.whatsapp.com/send?text={urllib.parse.quote(wa_msg)}")
+            
+            # Data View & Edit/Delete Section
+            cust_df = df[df['Name'] == name].iloc[::-1]
+            st.write("---")
+            st.markdown("**Transaction History & Edit Options:**")
+            
+            for idx, row in cust_df.iterrows():
+                with st.container():
+                    r1, r2, r3, r4 = st.columns([2, 2, 1, 1])
+                    r1.write(f"{row['Date']}")
+                    r2.write(f"{'↙️ Mila' if row['Credit']>0 else '↗️ Diya'}: Rs {row['Credit']+row['Debit']}")
+                    
+                    if r3.button("📝 Edit", key=f"edit_{idx}"):
+                        st.info(f"Edit feature: Please update the form on the right for {name}.")
+                    
+                    if r4.button("🗑️ Del", key=f"del_{idx}"):
+                        st.session_state.data = df.drop(idx)
+                        st.session_state.data.to_csv(FILE_NAME, index=False)
+                        st.rerun()
+            st.write("---")
+
+with col_entry:
+    st.subheader("➕ Nayi Entry / Edit")
+    with st.form("ledger_form", clear_on_submit=True):
+        u_name = st.text_input("Customer Name")
+        u_amt = st.number_input("Amount (Rs)", min_value=0.0)
+        u_type = st.radio("Entry Type", ["↗️ Give Credit (Udhar Diya)", "↙️ Take Payment (Vasooli)"])
+        u_note = st.text_input("Note / Bill Number")
+        
+        if st.form_submit_button("SAVE TRANSACTION"):
             dr = u_amt if "Give" in u_type else 0.0
             cr = u_amt if "Take" in u_type else 0.0
             new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": u_note, "Debit": dr, "Credit": cr}
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_r])], ignore_index=True)
             st.session_state.data.to_csv(FILE_NAME, index=False)
-            st.success("Saved Successfully!")
+            st.success(f"Entry for {u_name} saved!")
             st.rerun()
 
-    # Clear/Logout Option
-    st.write("---")
-    if st.button("🚪 Logout System"):
+    if st.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.rerun()
