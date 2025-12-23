@@ -4,7 +4,7 @@ import os
 import urllib.parse
 from datetime import datetime
 
-# Password & Files
+# Files & Logo
 PASSWORD = "noor786"
 FILE_NAME = "noor_ledger_final.csv"
 LOGO_FILE = "Noor Pharmacy logo.jpg"
@@ -14,28 +14,32 @@ st.set_page_config(page_title="Noor Pharmacy", layout="centered")
 # --- LOGIN ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if not st.session_state.logged_in:
-    st.markdown("<h2 style='text-align:center;'>🔐 Noor Pharmacy Login</h2>", unsafe_allow_html=True)
-    user_pass = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if user_pass == PASSWORD:
-            st.session_state.logged_in = True
-            st.rerun()
-        else: st.error("Ghalat Password!")
+    st.markdown("<h2 style='text-align:center;'>🔐 Noor Pharmacy</h2>", unsafe_allow_html=True)
+    user_pass = st.text_input("PIN", type="password")
+    if st.button("Enter"):
+        if user_pass == PASSWORD: st.session_state.logged_in = True; st.rerun()
     st.stop()
 
-# --- PREMIUM CSS ---
-st.markdown("""
+# --- ADVANCED UI CSS (Mirroring Your Image) ---
+st.markdown(f"""
 <style>
-    .stApp { background-color: #FFFFFF !important; }
-    h1, h2, h3, p, span, label { color: #1A237E !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    .card { background: #F8F9FA; padding: 20px; border-radius: 15px; border-left: 5px solid #0D47A1; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; color: black !important; }
-    .stMetric { background: #E3F2FD; padding: 15px; border-radius: 12px; text-align: center; }
-    [data-testid="stMetricValue"] { color: #0D47A1 !important; font-size: 24px !important; font-weight: bold !important; }
-    .stButton>button { width: 100%; border-radius: 10px; background-color: #0D47A1; color: white; border: none; padding: 10px; }
+    .stApp {{ background-color: #F7F9FC !important; }}
+    .metric-container {{ display: flex; justify-content: space-between; gap: 10px; margin-bottom: 20px; }}
+    .metric-card {{ background: white; padding: 15px; border-radius: 15px; width: 48%; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border: 1px solid #E1E8F0; }}
+    .metric-label {{ color: #78909C; font-size: 14px; margin-bottom: 5px; }}
+    .metric-value {{ font-size: 18px; font-weight: bold; }}
+    .cust-card {{ background: white; padding: 12px 15px; border-bottom: 1px solid #EDF2F7; display: flex; justify-content: space-between; align-items: center; }}
+    .cust-name {{ font-size: 16px; font-weight: 500; color: #2D3748; margin: 0; }}
+    .cust-date {{ font-size: 12px; color: #A0AEC0; margin: 0; }}
+    .cust-bal-green {{ color: #38A169; font-weight: bold; font-size: 16px; }}
+    .cust-bal-red {{ color: #E53E3E; font-weight: bold; font-size: 16px; }}
+    .action-bar {{ position: fixed; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 10px; padding: 0 20px; z-index: 100; }}
+    .btn-take {{ background-color: #3182CE; color: white; padding: 12px 20px; border-radius: 30px; border: none; font-weight: bold; flex: 1; }}
+    .btn-give {{ background-color: #ED8936; color: white; padding: 12px 20px; border-radius: 30px; border: none; font-weight: bold; flex: 1; }}
 </style>
 """, unsafe_allow_html=True)
 
-# Data Loader
+# Data Functions
 def load_data():
     if os.path.exists(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
@@ -44,64 +48,82 @@ def load_data():
         return df
     return pd.DataFrame(columns=["Date", "Name", "Note", "Debit", "Credit"])
 
-def save_file(df, file): df.to_csv(file, index=False)
-
 if 'data' not in st.session_state: st.session_state.data = load_data()
 
-# --- HEADER WITH LOGO ---
-col_l, col_r = st.columns([1, 4])
-with col_l:
-    if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=80)
-with col_r:
-    st.markdown('<h1 style="margin-top:10px;">NOOR PHARMACY</h1>', unsafe_allow_html=True)
+# --- HEADER ---
+c1, c2 = st.columns([1, 5])
+with c1: 
+    if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=60)
+with c2: st.markdown("<h3 style='margin-top:10px;'>Noor Pharmacy</h3>", unsafe_allow_html=True)
 
-# --- METRICS ---
+# --- TOP SUMMARY CARDS ---
 if not st.session_state.data.empty:
     summary = st.session_state.data.groupby('Name').apply(lambda x: x['Debit'].sum() - x['Credit'].sum(), include_groups=False)
     receive = summary[summary > 0].sum()
     pay = abs(summary[summary < 0].sum())
-else:
-    receive = 0.0; pay = 0.0; summary = pd.Series()
+else: receive = 0; pay = 0; summary = pd.Series()
 
-m1, m2 = st.columns(2)
-with m1: st.metric("KUL VASOOLI", f"Rs {receive:,.0f}")
-with m2: st.metric("KUL ADAIGI", f"Rs {pay:,.0f}")
+st.markdown(f"""
+<div class="metric-container">
+    <div class="metric-card">
+        <div class="metric-label">To Receive</div>
+        <div class="metric-value" style="color: #38A169;">Rs {receive:,.0f}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">To Pay</div>
+        <div class="metric-value" style="color: #E53E3E;">Rs {pay:,.0f}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-t1, t2 = st.tabs(["👤 CUSTOMERS", "➕ NEW ENTRY"])
+# --- CUSTOMER LIST ---
+search = st.text_input("🔍 Search Name or Phone Number", label_visibility="collapsed", placeholder="Search Name...")
+names = st.session_state.data["Name"].unique()
+if search: names = [n for n in names if search.lower() in n.lower()]
 
-with t1:
-    search = st.text_input("🔍 Search Customer Name")
-    names = st.session_state.data["Name"].unique()
-    if search: names = [n for n in names if search.lower() in n.lower()]
+for name in names:
+    bal = summary.get(name, 0)
+    bal_style = "cust-bal-green" if bal >= 0 else "cust-bal-red"
     
-    for name in names:
-        bal = summary.get(name, 0)
-        st.markdown(f'<div class="card"><b>{name}</b><br><span style="color:#D32F2F;">Balance: Rs {bal:,.0f}</span></div>', unsafe_allow_html=True)
-        
+    # Customer Row
+    st.markdown(f"""
+    <div class="cust-card">
+        <div>
+            <p class="cust-name">{name}</p>
+            <p class="cust-date">Last updated: {datetime.now().strftime('%d Dec')}</p>
+        </div>
+        <div class="{bal_style}">Rs {abs(bal):,.0f}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Hidden Actions (Click to Expand)
+    with st.expander("Details & WhatsApp"):
         c1, c2 = st.columns(2)
-        wa_msg = f"Assalam o Alaikum {name}, Noor Pharmacy se aapka balance Rs {bal} hai."
-        wa_url = f"https://web.whatsapp.com/send?text={urllib.parse.quote(wa_msg)}"
-        c1.markdown(f'🟢 [**WhatsApp**]({wa_url})')
-        
-        cust_df = st.session_state.data[st.session_state.data['Name'] == name]
-        c2.download_button("📥 Report", data=cust_df.to_csv(index=False), file_name=f"{name}.csv", key=f"dl_{name}")
-        
-        with st.expander("📝 View / Edit History"):
-            for idx, row in cust_df.iterrows():
-                st.write(f"{row['Date']} | {row['Note']} | Rs {row['Debit'] if row['Debit']>0 else row['Credit']}")
-                if st.button("❌ Delete", key=f"del_{idx}"):
-                    st.session_state.data = st.session_state.data.drop(idx)
-                    save_file(st.session_state.data, FILE_NAME); st.rerun()
+        wa_url = f"https://web.whatsapp.com/send?text=Assalam o Alaikum {name}, Aapka balance Rs {bal} hai."
+        c1.markdown(f'[🔔 WhatsApp]({wa_url})')
+        if c2.button("🗑️ Delete", key=f"del_{name}"):
+            st.session_state.data = st.session_state.data[st.session_state.data["Name"] != name]
+            st.session_state.data.to_csv(FILE_NAME, index=False)
+            st.rerun()
 
-with t2:
-    with st.form("premium_entry", clear_on_submit=True):
-        st.write("### Nayi Entry Karein")
-        u_name = st.text_input("Naam")
-        u_note = st.text_input("Detail")
-        u_amt = st.number_input("Raqam", min_value=0.0)
-        u_type = st.radio("Qisam", ["Udhaar Diya", "Vasooli Hui"])
-        if st.form_submit_button("SAVE RECORD"):
+# --- FLOATING ACTION BUTTONS ---
+st.markdown("""
+<div class="action-bar">
+    <button class="btn-take">↙️ Take Payment</button>
+    <button class="btn-give">↗️ Give Credit</button>
+</div>
+""", unsafe_allow_html=True)
+
+# Nayi Entry Form (Tabs as per Image)
+st.markdown("---")
+with st.expander("➕ Add New Transaction"):
+    with st.form("quick_add", clear_on_submit=True):
+        u_name = st.text_input("Customer Name")
+        u_amt = st.number_input("Amount", min_value=0.0)
+        u_type = st.radio("Type", ["Udhaar Diya", "Vasooli Hui"], horizontal=True)
+        if st.form_submit_button("Save"):
             dr, cr = (u_amt, 0.0) if "Udhaar" in u_type else (0.0, u_amt)
-            new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": u_note, "Debit": dr, "Credit": cr}
+            new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": "Quick Entry", "Debit": dr, "Credit": cr}
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_r])], ignore_index=True)
-            save_file(st.session_state.data, FILE_NAME); st.rerun()
+            st.session_state.data.to_csv(FILE_NAME, index=False)
+            st.rerun()
