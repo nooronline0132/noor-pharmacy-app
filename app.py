@@ -7,9 +7,9 @@ from datetime import datetime
 # Password & Files
 PASSWORD = "noor786"
 FILE_NAME = "noor_ledger_final.csv"
-CUST_FILE = "customer_details.csv"
+LOGO_FILE = "Noor Pharmacy logo.jpg"
 
-st.set_page_config(page_title="Noor Pharmacy", layout="wide")
+st.set_page_config(page_title="Noor Pharmacy", layout="centered")
 
 # --- LOGIN ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -23,18 +23,19 @@ if not st.session_state.logged_in:
         else: st.error("Ghalat Password!")
     st.stop()
 
-# --- CSS for Visibility ---
+# --- PREMIUM CSS ---
 st.markdown("""
 <style>
-    .stApp { background-color: white !important; }
-    h1, h2, h3, p, span, label, .stMarkdown { color: black !important; font-weight: 500; }
-    .card { background: #f0f2f6; padding: 15px; border-radius: 12px; border: 2px solid #0D47A1; margin-bottom: 10px; color: black !important; }
-    [data-testid="stMetricValue"] { color: #0D47A1 !important; font-weight: bold !important; font-size: 28px !important; }
-    [data-testid="stMetricLabel"] { color: #333333 !important; }
+    .stApp { background-color: #FFFFFF !important; }
+    h1, h2, h3, p, span, label { color: #1A237E !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .card { background: #F8F9FA; padding: 20px; border-radius: 15px; border-left: 5px solid #0D47A1; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; color: black !important; }
+    .stMetric { background: #E3F2FD; padding: 15px; border-radius: 12px; text-align: center; }
+    [data-testid="stMetricValue"] { color: #0D47A1 !important; font-size: 24px !important; font-weight: bold !important; }
+    .stButton>button { width: 100%; border-radius: 10px; background-color: #0D47A1; color: white; border: none; padding: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# Data Functions
+# Data Loader
 def load_data():
     if os.path.exists(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
@@ -47,9 +48,14 @@ def save_file(df, file): df.to_csv(file, index=False)
 
 if 'data' not in st.session_state: st.session_state.data = load_data()
 
-st.markdown('<h2 style="text-align:center; color:#0D47A1;">🏥 NOOR PHARMACY</h2>', unsafe_allow_html=True)
+# --- HEADER WITH LOGO ---
+col_l, col_r = st.columns([1, 4])
+with col_l:
+    if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=80)
+with col_r:
+    st.markdown('<h1 style="margin-top:10px;">NOOR PHARMACY</h1>', unsafe_allow_html=True)
 
-# --- Summary Metrics ---
+# --- METRICS ---
 if not st.session_state.data.empty:
     summary = st.session_state.data.groupby('Name').apply(lambda x: x['Debit'].sum() - x['Credit'].sum(), include_groups=False)
     receive = summary[summary > 0].sum()
@@ -57,64 +63,45 @@ if not st.session_state.data.empty:
 else:
     receive = 0.0; pay = 0.0; summary = pd.Series()
 
-col1, col2 = st.columns(2)
-col1.metric("KUL VASOOLI", f"Rs {receive:,.0f}")
-col2.metric("KUL ADAIGI", f"Rs {pay:,.0f}")
+m1, m2 = st.columns(2)
+with m1: st.metric("KUL VASOOLI", f"Rs {receive:,.0f}")
+with m2: st.metric("KUL ADAIGI", f"Rs {pay:,.0f}")
 
 t1, t2 = st.tabs(["👤 CUSTOMERS", "➕ NEW ENTRY"])
 
 with t1:
-    search = st.text_input("🔍 Search Customer")
-    unique_names = st.session_state.data["Name"].unique()
-    if search: unique_names = [n for n in unique_names if search.lower() in n.lower()]
+    search = st.text_input("🔍 Search Customer Name")
+    names = st.session_state.data["Name"].unique()
+    if search: names = [n for n in names if search.lower() in n.lower()]
     
-    for name in unique_names:
-        with st.container():
-            bal = summary.get(name, 0)
-            st.markdown(f'<div class="card"><b>{name}</b><br>Balance: Rs {bal:,.0f}</div>', unsafe_allow_html=True)
-            
-            # Action Buttons
-            c1, c2 = st.columns(2)
-            msg = f"Assalam o Alaikum {name}, Noor Pharmacy se aapka balance Rs {bal} hai."
-            wa_url = f"https://web.whatsapp.com/send?text={urllib.parse.quote(msg)}"
-            c1.markdown(f'🟢 [**WhatsApp**]({wa_url})')
-            
-            cust_data = st.session_state.data[st.session_state.data['Name'] == name]
-            csv_data = cust_data.to_csv(index=False).encode('utf-8')
-            c2.download_button("📥 Report", data=csv_data, file_name=f"{name}.csv", key=f"dl_{name}")
-
-            # History with Edit/Delete (Raat Wala Style)
-            with st.expander("📝 History / Edit / Delete"):
-                for idx, row in cust_data.iterrows():
-                    amt = row['Debit'] if row['Debit'] > 0 else row['Credit']
-                    st.write(f"📅 {row['Date']} | {row['Note']} | **Rs {amt}**")
-                    
-                    e1, e2 = st.columns(2)
-                    if e1.button("✏️ Edit", key=f"ed_{idx}"): st.session_state.active_edit = idx
-                    if e2.button("❌ Del", key=f"de_{idx}"):
-                        st.session_state.data = st.session_state.data.drop(idx)
-                        save_file(st.session_state.data, FILE_NAME); st.rerun()
-                    
-                    if st.session_state.get('active_edit') == idx:
-                        with st.form(f"f_{idx}"):
-                            new_note = st.text_input("Update Note", row['Note'])
-                            new_amt = st.number_input("Update Amount", value=float(amt))
-                            if st.form_submit_button("Update"):
-                                if row['Debit'] > 0: st.session_state.data.at[idx, 'Debit'] = new_amt
-                                else: st.session_state.data.at[idx, 'Credit'] = new_amt
-                                st.session_state.data.at[idx, 'Note'] = new_note
-                                save_file(st.session_state.data, FILE_NAME); del st.session_state.active_edit; st.rerun()
+    for name in names:
+        bal = summary.get(name, 0)
+        st.markdown(f'<div class="card"><b>{name}</b><br><span style="color:#D32F2F;">Balance: Rs {bal:,.0f}</span></div>', unsafe_allow_html=True)
+        
+        c1, c2 = st.columns(2)
+        wa_msg = f"Assalam o Alaikum {name}, Noor Pharmacy se aapka balance Rs {bal} hai."
+        wa_url = f"https://web.whatsapp.com/send?text={urllib.parse.quote(wa_msg)}"
+        c1.markdown(f'🟢 [**WhatsApp**]({wa_url})')
+        
+        cust_df = st.session_state.data[st.session_state.data['Name'] == name]
+        c2.download_button("📥 Report", data=cust_df.to_csv(index=False), file_name=f"{name}.csv", key=f"dl_{name}")
+        
+        with st.expander("📝 View / Edit History"):
+            for idx, row in cust_df.iterrows():
+                st.write(f"{row['Date']} | {row['Note']} | Rs {row['Debit'] if row['Debit']>0 else row['Credit']}")
+                if st.button("❌ Delete", key=f"del_{idx}"):
+                    st.session_state.data = st.session_state.data.drop(idx)
+                    save_file(st.session_state.data, FILE_NAME); st.rerun()
 
 with t2:
-    with st.form("new_entry_form", clear_on_submit=True):
-        st.write("### Nayi Entry")
-        u_name = st.text_input("Customer Naam")
+    with st.form("premium_entry", clear_on_submit=True):
+        st.write("### Nayi Entry Karein")
+        u_name = st.text_input("Naam")
         u_note = st.text_input("Detail")
-        u_amt = st.number_input("Amount", min_value=0.0)
-        u_type = st.radio("Type", ["Udhaar Diya", "Vasooli Hui"])
-        if st.form_submit_button("Save Record"):
-            dr = u_amt if "Udhaar" in u_type else 0.0
-            cr = u_amt if "Vasooli" in u_type else 0.0
+        u_amt = st.number_input("Raqam", min_value=0.0)
+        u_type = st.radio("Qisam", ["Udhaar Diya", "Vasooli Hui"])
+        if st.form_submit_button("SAVE RECORD"):
+            dr, cr = (u_amt, 0.0) if "Udhaar" in u_type else (0.0, u_amt)
             new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": u_note, "Debit": dr, "Credit": cr}
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_r])], ignore_index=True)
             save_file(st.session_state.data, FILE_NAME); st.rerun()
