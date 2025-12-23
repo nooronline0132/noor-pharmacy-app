@@ -6,26 +6,32 @@ from datetime import datetime
 
 # Files
 FILE_NAME = "noor_ledger_final.csv"
-LOGO_FILE = "Noor Pharmacy logo.jpg"
 
 st.set_page_config(page_title="Noor Pharmacy", layout="centered")
 
 # --- LOGIN & STATE ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
-if 'view' not in st.session_state: st.session_state.view = "list" # views: list, detail, entry
+if 'view' not in st.session_state: st.session_state.view = "list"
 if 'selected_cust' not in st.session_state: st.session_state.selected_cust = None
-if 'entry_type' not in st.session_state: st.session_state.entry_type = None
 
-# --- CSS (Professional Look) ---
+# --- NEW PROFESSIONAL CSS ---
 st.markdown("""
 <style>
-    .stApp { background-color: #F8FAFC !important; }
-    .header { display: flex; align-items: center; padding: 10px; background: white; border-bottom: 1px solid #E2E8F0; margin-bottom: 10px; }
-    .m-card { background: white; border-radius: 10px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; }
-    .cust-row { background: white; padding: 15px; border-bottom: 1px solid #F1F5F9; display: flex; justify-content: space-between; cursor: pointer; }
-    .fab-container { position: fixed; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 15px; padding: 0 20px; z-index: 999; }
-    .btn-blue { background-color: #2196F3; color: white; padding: 12px; border-radius: 25px; border: none; width: 45%; font-weight: bold; }
-    .btn-orange { background-color: #FF9800; color: white; padding: 12px; border-radius: 25px; border: none; width: 45%; font-weight: bold; }
+    .stApp { background-color: #EBF2F7 !important; } /* Light Blue-Grey Background */
+    [data-testid="stHeader"] { background: #EBF2F7 !important; }
+    
+    /* Header Style */
+    .app-header { background: white; padding: 15px; border-radius: 0 0 20px 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: center; margin-bottom: 20px; }
+    
+    /* Metric Cards */
+    .m-container { display: flex; justify-content: space-between; margin-bottom: 20px; gap: 10px; }
+    .m-card { background: white; padding: 15px; border-radius: 15px; width: 48%; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; }
+    
+    /* Customer Card */
+    .cust-btn { background: white !important; border: none !important; border-radius: 10px !important; padding: 15px !important; margin-bottom: 10px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.03) !important; color: black !important; text-align: left !important; width: 100%; border-bottom: 1px solid #eee !important; }
+    
+    /* FAB Buttons */
+    .fab-fixed { position: fixed; bottom: 0; left: 0; width: 100%; background: white; padding: 15px; display: flex; justify-content: space-around; box-shadow: 0 -5px 15px rgba(0,0,0,0.05); z-index: 999; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -39,79 +45,66 @@ def load_data():
 
 if 'data' not in st.session_state: st.session_state.data = load_data()
 
-# --- NAVIGATION LOGIC ---
-def go_to_list(): 
-    st.session_state.view = "list"
-    st.rerun()
-
-def go_to_detail(name):
-    st.session_state.selected_cust = name
-    st.session_state.view = "detail"
-    st.rerun()
-
-def go_to_entry(etype):
-    st.session_state.entry_type = etype
-    st.session_state.view = "entry"
-    st.rerun()
-
-# --- WINDOW 1: CUSTOMER LIST ---
+# --- WINDOW 1: LIST VIEW ---
 if st.session_state.view == "list":
-    # Header & Metrics
-    st.markdown("### Noor Pharmacy")
-    summary = st.session_state.data.groupby('Name').apply(lambda x: x['Debit'].sum() - x['Credit'].sum(), include_groups=False)
+    st.markdown('<div class="app-header"><h3>Noor Pharmacy</h3></div>', unsafe_allow_html=True)
     
+    # Metrics
+    summary = st.session_state.data.groupby('Name').apply(lambda x: x['Debit'].sum() - x['Credit'].sum(), include_groups=False)
     m1, m2 = st.columns(2)
-    m1.markdown(f'<div class="m-card"><small>To Receive</small><br><b style="color:green; font-size:18px;">Rs {summary[summary > 0].sum():,.0f}</b></div>', unsafe_allow_html=True)
-    m2.markdown(f'<div class="m-card"><small>To Pay</small><br><b style="color:red; font-size:18px;">Rs {abs(summary[summary < 0].sum()):,.0f}</b></div>', unsafe_allow_html=True)
+    with m1: st.markdown(f'<div class="m-card"><small style="color:grey;">To Receive</small><br><b style="color:#2E7D32; font-size:20px;">Rs {summary[summary > 0].sum():,.0f}</b></div>', unsafe_allow_html=True)
+    with m2: st.markdown(f'<div class="m-card"><small style="color:grey;">To Pay</small><br><b style="color:#C62828; font-size:20px;">Rs {abs(summary[summary < 0].sum()):,.0f}</b></div>', unsafe_allow_html=True)
 
-    search = st.text_input("🔍 Search Name...", placeholder="Waseem, Arshad...")
+    st.write("")
+    search = st.text_input("🔍 Search Name", placeholder="Customer ka naam likhein...")
+    
+    st.markdown("#### Customers")
     names = st.session_state.data["Name"].unique()
     if search: names = [n for n in names if search.lower() in n.lower()]
     
-    st.write("---")
     for n in names:
         bal = summary.get(n, 0)
-        col_n, col_b = st.columns([3, 1])
-        if col_n.button(f"👤 {n}", key=f"btn_{n}", use_container_width=True):
-            go_to_detail(n)
-        col_b.markdown(f"**{bal:,.0f}**")
+        # Using a container to make it look like a list item
+        with st.container():
+            c1, c2 = st.columns([3, 1])
+            if c1.button(f"👤 {n}", key=f"sel_{n}"):
+                st.session_state.selected_cust = n
+                st.session_state.view = "detail"
+                st.rerun()
+            c2.markdown(f"<p style='margin-top:10px; font-weight:bold; color:{'green' if bal>=0 else 'red'};'>{abs(bal):,.0f}</p>", unsafe_allow_html=True)
 
-# --- WINDOW 2: CUSTOMER DETAIL (LEDGER) ---
+# --- WINDOW 2: DETAIL VIEW ---
 elif st.session_state.view == "detail":
     name = st.session_state.selected_cust
-    if st.button("← Back to List"): go_to_list()
+    st.markdown(f'<div class="app-header"><h3 style="display:inline;">{name}</h3></div>', unsafe_allow_html=True)
+    if st.button("← Back"): 
+        st.session_state.view = "list"
+        st.rerun()
     
-    st.markdown(f"## {name}")
-    cust_bal = st.session_state.data[st.session_state.data['Name'] == name].apply(lambda x: x['Debit'] - x['Credit'], axis=1).sum()
-    st.markdown(f'<div class="m-card"><small>Total Balance</small><h2>Rs {cust_bal:,.0f}</h2></div>', unsafe_allow_html=True)
+    cust_df = st.session_state.data[st.session_state.data['Name'] == name]
+    bal = cust_df['Debit'].sum() - cust_df['Credit'].sum()
     
-    st.write("### Transaction History")
-    history = st.session_state.data[st.session_state.data['Name'] == name].iloc[::-1]
-    for _, row in history.iterrows():
-        t_label = "↗️ Credit" if row['Debit'] > 0 else "↙️ Payment"
-        t_amt = row['Debit'] if row['Debit'] > 0 else row['Credit']
-        st.markdown(f"**{row['Date']}** | {t_label}: **Rs {t_amt:,.0f}**")
+    st.markdown(f'<div class="m-card" style="width:100%"><small>Current Balance</small><h2>Rs {bal:,.0f}</h2></div>', unsafe_allow_html=True)
+    
+    st.write("---")
+    for _, row in cust_df.iloc[::-1].iterrows():
+        t_type = "↗️ Credit" if row['Debit'] > 0 else "↙️ Payment"
+        st.markdown(f"**{row['Date']}**")
+        st.markdown(f"{t_label} : **Rs {row['Debit'] if row['Debit']>0 else row['Credit']:,.0f}**")
         st.caption(f"Note: {row['Note']}")
         st.write("---")
 
-# --- WINDOW 3: ENTRY WINDOW ---
-elif st.session_state.view == "entry":
-    etype = st.session_state.entry_type
-    st.markdown(f"### ← {etype}")
-    with st.form("entry_form"):
-        u_name = st.text_input("Customer Name", value=st.session_state.selected_cust if st.session_state.selected_cust else "")
+# --- FLOATING ENTRY FORM ---
+with st.sidebar:
+    st.markdown("### ➕ Quick Entry")
+    with st.form("quick_form", clear_on_submit=True):
+        u_name = st.text_input("Customer", value=st.session_state.selected_cust if st.session_state.selected_cust else "")
         u_amt = st.number_input("Amount", min_value=0.0)
-        u_note = st.text_input("Note (Optional)")
-        if st.form_submit_button("SAVE TRANSACTION"):
-            dr, cr = (u_amt, 0.0) if "Credit" in etype else (0.0, u_amt)
-            new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": u_note, "Debit": dr, "Credit": cr}
+        u_type = st.radio("Type", ["Give Credit", "Take Payment"])
+        if st.form_submit_button("Save"):
+            dr, cr = (u_amt, 0.0) if u_type == "Give Credit" else (0.0, u_amt)
+            new_r = {"Date": datetime.now().strftime("%d/%m/%Y"), "Name": u_name, "Note": "Added", "Debit": dr, "Credit": cr}
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_r])], ignore_index=True)
             st.session_state.data.to_csv(FILE_NAME, index=False)
-            go_to_list()
-
-# --- FLOATING BUTTONS (On List & Detail) ---
-if st.session_state.view != "entry":
-    st.markdown("""<div style="height:80px;"></div>""", unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    if c1.button("↙️ Take Payment", key="main_take"): go_to_entry("Take Payment")
-    if c2.button("↗️ Give Credit", key="main_give"): go_to_entry("Give Credit")
+            st.success("Saved!")
+            st.rerun()
